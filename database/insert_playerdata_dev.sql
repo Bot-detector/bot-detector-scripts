@@ -84,3 +84,28 @@ join lateral (
 	limit 100
 ) r on (1=1)
 ;
+
+insert ignore into playerdata_dev.playerLocations
+select plo.* from playerdata.playerLocations plo
+join playerdata_dev.Players pl on plo.reported_id = pl.id;
+
+insert ignore into playerdata_dev.playerLocationsDetail
+select pld.* from playerdata.playerLocationsDetail pld
+join playerdata_dev.Players pl on pld.reported_id = pl.id;
+
+insert ignore into playerdata_dev.playerReports
+select plr.* from playerdata.playerReports plr
+join playerdata_dev.Players pl on plr.reported_id = pl.id;
+
+insert ignore into playerdata_dev.playerReports
+select plr.* from playerdata.playerReports plr
+join playerdata_dev.Players pl on plr.reporting_id = pl.id;
+
+
+insert ignore into playerdata_dev.playerReportsManual
+select prm.* from playerdata.playerReportsManual prm
+join playerdata_dev.Players pl on prm.reporting_id = pl.id;
+
+insert ignore into playerdata_dev.playerReportsManual
+select prm.* from playerdata.playerReportsManual prm
+join playerdata_dev.Players pl on prm.reported_id = pl.id;
