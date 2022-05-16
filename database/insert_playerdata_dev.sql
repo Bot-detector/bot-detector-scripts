@@ -1,3 +1,6 @@
+SET NAMES 'utf8mb4';
+SET CHARACTER SET utf8mb4;
+
 insert ignore into apiPermissions (id, permission) values 
 (1, 'verify_ban'),
 (2, 'verify_players'),
@@ -35,7 +38,8 @@ join lateral (
 ) p on (1=1)
 ;
 
-update playerdata_dev.Players set name=AES_ENCRYPT(name, "Victor_careers_onto_THE9_free0_endorser."), normalized_name=AES_ENCRYPT(normalized_name, "Victor_careers_onto_THE9_free0_endorser.");
+-- ES_DECRYPT(BINARY(UNHEX(setting_value)), 'key')
+update playerdata_dev.Players set name=HEX(AES_ENCRYPT(name, "Victor_careers_onto_THE9_free0_endorser.")), normalized_name=HEX(AES_ENCRYPT(normalized_name, "Victor_careers_onto_THE9_free0_endorser."));
 
 insert ignore into playerdata_dev.playerHiscoreData
 select phd.* from playerdata.playerHiscoreData phd
@@ -53,7 +57,7 @@ insert ignore into playerdata_dev.Predictions
 select pr.* from playerdata.Predictions pr
 join playerdata_dev.Players pl on pr.id = pl.id;
 
-update playerdata_dev.Predictions set name=AES_ENCRYPT(name, "Victor_careers_onto_THE9_free0_endorser.");
+update playerdata_dev.Predictions set name=HEX(AES_ENCRYPT(name, "Victor_careers_onto_THE9_free0_endorser."));
 
 insert ignore into playerdata_dev.PredictionsFeedback
 select pr.* from playerdata.PredictionsFeedback pr
@@ -100,7 +104,6 @@ join playerdata_dev.Players pl on plr.reported_id = pl.id;
 insert ignore into playerdata_dev.playerReports
 select plr.* from playerdata.playerReports plr
 join playerdata_dev.Players pl on plr.reporting_id = pl.id;
-
 
 insert ignore into playerdata_dev.playerReportsManual
 select prm.* from playerdata.playerReportsManual prm
