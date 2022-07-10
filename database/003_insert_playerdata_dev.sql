@@ -19,5 +19,5 @@ insert ignore into playerdata_dev.Predictions
 select pr.* from playerdata.Predictions pr
 join playerdata_dev.Players pl on pr.id = pl.id;
 
-ALTER TABLE playerdata_dev.Predictions CHANGE `prediction` `prediction` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL;
+ALTER TABLE playerdata_dev.Predictions CHANGE `name` `name` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL;
 update playerdata_dev.Predictions set name=HEX(AES_ENCRYPT(name, "Victor_careers_onto_THE9_free0_endorser."));
