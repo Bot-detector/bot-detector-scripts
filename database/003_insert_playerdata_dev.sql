@@ -1,12 +1,6 @@
 /*
     Generic data
 */
-insert ignore into playerdata_dev.Labels 
-select * from playerdata.Labels;
-
-insert ignore into playerdata_dev.LabelJagex 
-select * from playerdata.LabelJagex;
-
 insert ignore into playerdata_dev.PredictionsFeedback
 select pr.* from playerdata.PredictionsFeedback pr
 join playerdata_dev.Players pl on pr.voter_id = pl.id or pr.subject_id=pl.id;

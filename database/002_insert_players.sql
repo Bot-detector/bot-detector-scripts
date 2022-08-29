@@ -1,6 +1,12 @@
 /*
     Insert players
 */
+insert ignore into playerdata_dev.Labels 
+select * from playerdata.Labels;
+
+insert ignore into playerdata_dev.LabelJagex 
+select * from playerdata.LabelJagex;
+
 insert ignore into playerdata_dev.Players
 select p.* from playerdata.Labels lb
 join lateral (
