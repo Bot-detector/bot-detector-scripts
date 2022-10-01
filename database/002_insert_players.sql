@@ -2,7 +2,7 @@
     Insert players
 */
 insert ignore into playerdata_dev.Labels 
-select * from playerdata.Labels;
+select * from playerdata.Labels order by id desc;
 
 insert ignore into playerdata_dev.LabelJagex 
 select * from playerdata.LabelJagex;
@@ -18,6 +18,21 @@ join lateral (
 ) p on (1=1)
 ;
 
+insert ignore into playerdata_dev.Players
+select * from playerdata.Players pl 
+where 1=1
+    and pl.label_id = 0 -- unkown player
+    and pl.id not in (select id from playerdata_dev.Players)
+limit 45000
+;
+
+insert ignore into playerdata_dev.Players
+select * from playerdata.Players pl 
+where 1=1
+    and pl.label_id = 1 -- real player
+    and pl.id not in (select id from playerdata_dev.Players)
+limit 15000
+;
 
 /*
     Encrypt player names
