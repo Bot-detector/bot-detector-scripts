@@ -3,6 +3,7 @@
 */
 insert ignore into playerdata_dev.Labels 
 select * from playerdata.Labels order by id desc;
+update playerdata_dev.Labels set id=0  where label='Unknown';
 
 insert ignore into playerdata_dev.LabelJagex 
 select * from playerdata.LabelJagex;
@@ -23,7 +24,7 @@ select * from playerdata.Players pl
 where 1=1
     and pl.label_id = 0 -- unkown player
     and pl.id not in (select id from playerdata_dev.Players)
-limit 45000
+limit 15000
 ;
 
 insert ignore into playerdata_dev.Players
