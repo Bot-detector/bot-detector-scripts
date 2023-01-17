@@ -15,16 +15,17 @@ join lateral (
         pl.*
     from playerdata.Players pl
     where lb.id = pl.label_id
-    limit 5000
+    limit 100
 ) p on (1=1)
 ;
 
+/*
 insert ignore into playerdata_dev.Players
 select * from playerdata.Players pl 
 where 1=1
     and pl.label_id = 0 -- unkown player
     and pl.id not in (select id from playerdata_dev.Players)
-limit 15000
+limit 100
 ;
 
 insert ignore into playerdata_dev.Players
@@ -34,6 +35,7 @@ where 1=1
     and pl.id not in (select id from playerdata_dev.Players)
 limit 15000
 ;
+*/
 
 /*
     Encrypt player names
