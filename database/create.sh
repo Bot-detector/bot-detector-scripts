@@ -1,7 +1,7 @@
 #!/bin/sh
 
 sudo mysql -u root < /home/ubuntu/000_recreate_playerdata_dev.sql
-sudo mysqldump -u root --no-data --routines --events playerdata | sudo mysql -u root playerdata_dev
+sudo mysqldump -u root --no-data --routines --triggers --events --databases playerdata| sudo mysql -u root playerdata_dev
 sudo mysql -u root playerdata_dev < /home/ubuntu/001_insert_apiUser.sql
 sudo mysql -u root playerdata_dev < /home/ubuntu/002_insert_players.sql
 sudo mysql -u root playerdata_dev < /home/ubuntu/003_insert_playerdata_dev.sql
