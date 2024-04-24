@@ -127,11 +127,18 @@ async def query_highscores(player_id: int, limit: int) -> dict:
         async with session.begin():
             sql = """
                 SELECT phd.* FROM playerHiscoreData phd 
-                join (select * from Players where id > :player_id and label_id = 0 LIMIT :limit) pl  on phd.Player_id=pl.id
+                join (select * from Players where id > :player_id and label_id != 0 LIMIT :limit) pl  on phd.Player_id=pl.id
             """
-            sql = sqlalchemy.text(sql)
+            # sql = """
+            #     SELECT phd.* FROM playerHiscoreDataLatest phd 
+            #     join (select * from Players where id > 1 and label_id !=0) pl  on phd.Player_id=pl.id
+            #     LEFT  JOIN scraper_data_latest sdl on phd.Player_id =sdl.player_id 
+            #     where 1=1
+            #         and sdl.scraper_id is null
+            #     limit :limit
+            # """
             params = {"player_id": player_id, "limit": limit}
-            result = await session.execute(sql, params=params)
+            result = await session.execute(sqlalchemy.text(sql), params=params)
             rows = result.fetchall()
             return [row._mapping for row in rows if row]
 
@@ -231,7 +238,7 @@ async def query_insert(hs_data: list[dict], sm: Semaphore):
                 await insert_player_skills(session=session, data=skills_data)
             if activity_data:
                 await insert_player_activities(session=session, data=activity_data)
-
+            
             print(scraper_data, len(skills_data), len(activity_data), sm._value)
 
 
@@ -241,7 +248,9 @@ async def task(semaphore: Semaphore, batch: list[dict]):
 
 
 async def main():
-    player_id = 3625208  # last player label_id !=0 : 122448237
+    # last player label_id !=0 : 122448237
+    # 3625208
+    player_id = 1  
     limit = 1000
     tasks = []
     semaphore = Semaphore(100)
