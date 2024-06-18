@@ -131,3 +131,5 @@ dmypy.json
 playerlocations.csv
 .vscode/launch.json
 .vscode/settings.json
+reports/*
+*.zip
