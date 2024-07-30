@@ -5,6 +5,7 @@ import dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 import sqlalchemy as sqla
+import csv
 
 dotenv.load_dotenv(dotenv.find_dotenv(), verbose=True)
 
@@ -13,8 +14,18 @@ connection_string = os.environ.get("sql_uri")
 assert connection_string is not None
 
 engine = create_async_engine(connection_string, pool_size=100, max_overflow=10)
-Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=True)
-
+Session = sessionmaker(
+    bind=engine,
+    expire_on_commit=False,
+    class_=AsyncSession,  # Use AsyncSession for asynchronous operations
+    autocommit=False,
+    autoflush=False,
+)
+def write_row(row:list, file:str) -> None:
+    with open(file, 'a') as csvfile: 
+        # creating a csv writer object 
+        csvwriter = csv.writer(csvfile) 
+        csvwriter.writerow(row)
 
 async def migrate_hs_data(player_id: int = 0, limit: int = 100):
     # create temp (staging) tables
@@ -161,6 +172,14 @@ async def migrate_hs_data(player_id: int = 0, limit: int = 100):
     async with Session() as session:
         session: AsyncSession
         async with session.begin():
+            # cleanup
+            await session.execute(sqla.text("DROP TABLE IF EXISTS temp_player"))
+            await session.execute(
+                sqla.text("DROP TABLE IF EXISTS temp_migration_skill")
+            )
+            await session.execute(
+                sqla.text("DROP TABLE IF EXISTS temp_migration_activity")
+            )
             # create temp (staging) tables
             await session.execute(
                 sqla.text(sql_create_temp_scrapes),
@@ -209,20 +228,24 @@ async def migrate_hs_data(player_id: int = 0, limit: int = 100):
             await session.commit()
         return data | number_migrated
 
-
 async def main():
-    player_id = 11571
+    player_id = 513111
     limit = 100
+    sleep = 1
     while True:
         try:
             data = await migrate_hs_data(player_id=player_id, limit=limit)
+            sleep = 1
         except Exception as e:
             print(e)
+            await asyncio.sleep(sleep)
+            sleep += 1
             continue
     
         print(data)
         player_id = data.get("player_id")
         assert player_id
+        write_row(row=[player_id], file="./hs_migration.csv")
 
         count = data.get("cnt", 0)
         if count < limit:
