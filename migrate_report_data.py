@@ -4,8 +4,10 @@ import dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 import sqlalchemy as sqla
+from sqlalchemy.exc import OperationalError
 import csv
 import logging
+import time
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +41,7 @@ async def migrate_report_data(player_id_list: list):
         SELECT DISTINCT r.reportingID , r.reportedID , IFNULL(r.manual_detect,0) from Reports r
         WHERE 1
             and r.reportingID IN :player_id_list
+            and r.created_at > '2024-07-30'
             AND NOT EXISTS (
                 SELECT 1 FROM report_sighting rs
                 WHERE 1
@@ -116,12 +119,18 @@ async def task_migrate(batch_queue: asyncio.Queue, semaphore: asyncio.Semaphore)
                 if players:
                     _player_ids = [p["player_id"] for p in players]
                     logger.info(f"Started Migrating: {_player_ids}")
+                    start = time.time()
                     await migrate_report_data(player_id_list=_player_ids)
-                    logger.info(f"Migrated: {_player_ids}")
+                    logger.info(f"Migrated: {_player_ids}, time: {int(time.time()-start)}")
                 batch_queue.task_done()
                 sleep = 1
+        except OperationalError as e:
+            logger.warning(f"task_migrate: {_player_ids} {e._message()}")
+            await asyncio.sleep(sleep)
+            sleep = min(sleep * 2, 60)
+            continue
         except Exception as e:
-            logger.error(f"Error in task_migrate: {e}")
+            logger.error(f"task_migrate: {_player_ids} {e}")
             await asyncio.sleep(sleep)
             sleep = min(sleep * 2, 60)
             continue
@@ -129,7 +138,7 @@ async def task_migrate(batch_queue: asyncio.Queue, semaphore: asyncio.Semaphore)
 
 async def main():
     batch_queue = asyncio.Queue(maxsize=10)
-    semaphore = asyncio.Semaphore(20)  # Limit the number of concurrent tasks
+    semaphore = asyncio.Semaphore(100)  # Limit the number of concurrent tasks
     batch_size = 1
 
     # Start the batch creation task
