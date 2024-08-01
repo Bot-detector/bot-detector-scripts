@@ -64,7 +64,6 @@ async def migrate_report_data(player_id_list: list):
             await session.commit()
 
 
-
 async def select_players_to_migrate():
     sql_select_migrated = """
         SELECT 
@@ -94,7 +93,7 @@ async def create_batches(batch_size: int, batch_queue: asyncio.Queue):
             players = await select_players_to_migrate()
             if players:
                 for i in range(0, len(players), batch_size):
-                    batch = players[i:i + batch_size]
+                    batch = players[i : i + batch_size]
                     await batch_queue.put(batch)
                 sleep = 1
             else:
@@ -115,7 +114,7 @@ async def task_migrate(batch_queue: asyncio.Queue, semaphore: asyncio.Semaphore)
             async with semaphore:
                 players = await batch_queue.get()
                 if players:
-                    _player_ids = [p['player_id'] for p in players]
+                    _player_ids = [p["player_id"] for p in players]
                     logger.info(f"Started Migrating: {_player_ids}")
                     await migrate_report_data(player_id_list=_player_ids)
                     logger.info(f"Migrated: {_player_ids}")
