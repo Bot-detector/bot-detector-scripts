@@ -8,10 +8,20 @@ from sqlalchemy.exc import OperationalError
 import csv
 import logging
 import time
+import sys
+import datetime
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+# # log formatting
+fmt = "t: %(asctime)s - n: %(name)s - fn: %(funcName)s - l: %(levelname)s - m: %(message)s"
+fmt = "t: %(asctime)s - l: %(levelname)s - m: %(message)s"
+
+formatter = logging.Formatter()
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(formatter)
+handlers = [stream_handler]
+
+logging.basicConfig(level=logging.DEBUG, handlers=handlers)
 
 dotenv.load_dotenv(dotenv.find_dotenv(), verbose=True)
 
@@ -27,6 +37,7 @@ Session = sessionmaker(
     autocommit=False,
     autoflush=False,
 )
+counter = 0
 
 
 def write_row(row: list, file: str) -> None:
@@ -41,7 +52,7 @@ async def migrate_report_data(player_id_list: list):
         SELECT DISTINCT r.reportingID , r.reportedID , IFNULL(r.manual_detect,0) from Reports r
         WHERE 1
             and r.reportingID IN :player_id_list
-            and r.created_at > '2024-07-30'
+            and r.created_at < '2024-07-30'
             AND NOT EXISTS (
                 SELECT 1 FROM report_sighting rs
                 WHERE 1
@@ -61,9 +72,21 @@ async def migrate_report_data(player_id_list: list):
     params = {"player_id_list": tuple(player_id_list)}
     async with Session() as session:
         session: AsyncSession
+
         async with session.begin():
+            await session.connection(
+                execution_options={"isolation_level": "READ COMMITTED"}
+            )
+            # # Set innodb_lock_wait_timeout to a very low value (e.g., 1 second)
+            await session.execute(sqla.text("SET SESSION innodb_lock_wait_timeout = 5"))
+
+            # Perform insert operation
             await session.execute(sqla.text(sql_insert_sighting), params=params)
+
+            # Perform update operation
             await session.execute(sqla.text(sql_update_migrated), params=params)
+
+            # Commit the transaction
             await session.commit()
 
 
@@ -111,8 +134,12 @@ async def create_batches(batch_size: int, batch_queue: asyncio.Queue):
 
 
 async def task_migrate(batch_queue: asyncio.Queue, semaphore: asyncio.Semaphore):
+    global counter
     sleep = 1
     while True:
+        if batch_queue.empty():
+            await asyncio.sleep(1)
+            continue
         try:
             async with semaphore:
                 players = await batch_queue.get()
@@ -121,19 +148,31 @@ async def task_migrate(batch_queue: asyncio.Queue, semaphore: asyncio.Semaphore)
                     logger.info(f"Started Migrating: {_player_ids}")
                     start = time.time()
                     await migrate_report_data(player_id_list=_player_ids)
-                    logger.info(f"Migrated: {_player_ids}, time: {int(time.time()-start)}")
+                    counter += 1
+                    delta = int(time.time() - start)
+                    logger.info(f"Migrated: {_player_ids}, time: {delta}")
                 batch_queue.task_done()
                 sleep = 1
         except OperationalError as e:
-            logger.warning(f"task_migrate: {_player_ids} {e._message()}")
+            logger.warning(f"task_migrate: [{sleep}] {_player_ids} {e._message()}")
             await asyncio.sleep(sleep)
             sleep = min(sleep * 2, 60)
             continue
         except Exception as e:
-            logger.error(f"task_migrate: {_player_ids} {e}")
+            logger.error(f"task_migrate: [{sleep}] {_player_ids} {e}")
             await asyncio.sleep(sleep)
             sleep = min(sleep * 2, 60)
             continue
+
+
+async def write_progress():
+    global counter
+    while True:
+        now_epoch = int(time.time())
+        now_dt = datetime.datetime.now()
+        row = [now_epoch, now_dt, counter]
+        write_row(row=row, file="./report_migration.csv")
+        await asyncio.sleep(60)
 
 
 async def main():
