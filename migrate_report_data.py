@@ -69,6 +69,7 @@ async def migrate_report_data(player_id_list: list):
             reporting_id IN :player_id_list
         ;
     """
+    sql_combined = sql_insert_sighting + sql_update_migrated + "COMMIT;"
     params = {"player_id_list": tuple(player_id_list)}
     async with Session() as session:
         session: AsyncSession
@@ -80,14 +81,15 @@ async def migrate_report_data(player_id_list: list):
             # # Set innodb_lock_wait_timeout to a very low value (e.g., 1 second)
             await session.execute(sqla.text("SET SESSION innodb_lock_wait_timeout = 5"))
 
-            # Perform insert operation
-            await session.execute(sqla.text(sql_insert_sighting), params=params)
+            # # Perform insert operation
+            # await session.execute(sqla.text(sql_insert_sighting), params=params)
 
-            # Perform update operation
-            await session.execute(sqla.text(sql_update_migrated), params=params)
+            # # Perform update operation
+            # await session.execute(sqla.text(sql_update_migrated), params=params)
 
-            # Commit the transaction
-            await session.commit()
+            # # Commit the transaction
+            # await session.commit()
+            await session.execute(sqla.text(sql_combined), params=params)
 
 
 async def select_players_to_migrate():
@@ -192,7 +194,7 @@ async def main():
 
     tasks = [batch_task, progress_task, *migration_tasks]
     try:
-        await asyncio.gather(tasks)
+        await asyncio.gather(*tasks)
     except Exception as e:
         logger.error(f"Error in main: {e}")
     finally:
@@ -200,10 +202,8 @@ async def main():
         batch_task.cancel()
         for task in migration_tasks:
             task.cancel()
-        
-        await asyncio.gather(
-            tasks, return_exceptions=True
-        )
+
+        await asyncio.gather(*tasks, return_exceptions=True)
         await engine.dispose()
 
 
