@@ -182,6 +182,7 @@ async def main():
 
     # Start the batch creation task
     batch_task = asyncio.create_task(create_batches(batch_size, batch_queue))
+    progress_task = asyncio.create_task(write_progress())
 
     # Start multiple migration tasks
     migration_tasks = [
@@ -189,8 +190,9 @@ async def main():
         for _ in range(semaphore._value)
     ]
 
+    tasks = [batch_task, progress_task, *migration_tasks]
     try:
-        await asyncio.gather(batch_task, *migration_tasks)
+        await asyncio.gather(tasks)
     except Exception as e:
         logger.error(f"Error in main: {e}")
     finally:
@@ -198,7 +200,10 @@ async def main():
         batch_task.cancel()
         for task in migration_tasks:
             task.cancel()
-        await asyncio.gather(batch_task, *migration_tasks, return_exceptions=True)
+        
+        await asyncio.gather(
+            tasks, return_exceptions=True
+        )
         await engine.dispose()
 
 
