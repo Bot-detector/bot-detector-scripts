@@ -43,8 +43,6 @@ logging.getLogger("asyncmy").addFilter(IgnoreSpecificWarnings())
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-logger.addHandler(handler)
-
 
 # Establishing database connection
 connection_string = os.environ.get("sql_uri")
@@ -73,6 +71,7 @@ async def get_players_to_migrate(player_id: int, limit: int):
             player_id 
         FROM scraper_data 
         WHERE player_id > :player_id
+        ORDER  BY player_id 
         LIMIT :limit
         ;
     """
@@ -215,7 +214,7 @@ async def main():
 
     player_queue = asyncio.Queue(maxsize=100)
     # semaphore limits the number of async tasks
-    semaphore = asyncio.Semaphore(100)
+    semaphore = asyncio.Semaphore(10)
 
     get_players = asyncio.create_task(task_get_players(player_queue, player_id, limit))
     migration_tasks = [
