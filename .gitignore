@@ -133,3 +133,4 @@ playerlocations.csv
 .vscode/settings.json
 reports/*
 *.zip
+*.csv
