@@ -17,16 +17,17 @@ dotenv.load_dotenv(dotenv.find_dotenv(), verbose=True)
 class JsonFormatter(logging.Formatter):
     def format(self, record):
         log_record = {
-            "timestamp": self.formatTime(record, self.datefmt),
-            "level": record.levelname,
+            "ts": self.formatTime(record, self.datefmt),
+            "lvl": record.levelname,
             "module": record.module,
             "funcName": record.funcName,
             "lineNo": record.lineno,
-            "message": record.getMessage(),
+            "msg": record.getMessage(),
         }
         if record.exc_info:
             log_record["exception"] = self.formatException(record.exc_info)
         return json.dumps(log_record)
+
 
 class IgnoreSpecificWarnings(logging.Filter):
     def filter(self, record):
@@ -127,7 +128,7 @@ async def migrate(player_id: int):
             ) as activities
         FROM scraper_data sd
         WHERE 1=1
-            and sd.player_id = :player_id
+            and sd.player_id IN :player_id
         ;
     """
 
@@ -156,37 +157,48 @@ async def migrate(player_id: int):
             )
             await session.execute(sqla.text(sql_insert_table))
             await session.execute(sqla.text(sql_delete_data))
-
+            result = await session.execute(
+                sqla.text("select count(*) as cnt from temp_hs_data;")
+            )
+            cnt = result.mappings().all()
             await session.execute(sqla.text("DROP TABLE IF EXISTS temp_hs_data;"))
+
             await session.commit()
+    return cnt
 
 
 async def task_migrate(queue: asyncio.Queue, semaphore: asyncio.Semaphore):
     sleep = 1
+
     while True:
         if queue.empty():
             await asyncio.sleep(1)
             continue
+
         player_id = await queue.get()
         queue.task_done()
 
         async with semaphore:
             try:
                 start_time = time.time()
-                await migrate(player_id=player_id)
+                cnt = await migrate(player_id=player_id)
                 delta = int(time.time() - start_time)
-                logger.info(f"[{player_id}], took {delta} seconds.")
+                logger.info(
+                    f"[{player_id[0]}..{player_id[-1]}] l:{len(player_id)}, {delta} sec {cnt}"
+                )
                 sleep = 1
             except OperationalError as e:
-                logger.info(
-                    f"error in task_migrate: [{sleep}] {player_id} {e._message()}"
+                logger.error(
+                    f"err: sleep: {sleep} [{player_id[0]}..{player_id[-1]}] l:{len(player_id)}, {e._message()}"
                 )
                 await asyncio.sleep(sleep)
                 sleep = min(sleep * 2, 60)
                 continue
 
 
-async def task_get_players(queue: asyncio.Queue, player_id: int = 0, limit: int = 1000):
+async def task_get_players(
+    queue: asyncio.Queue, player_id: int = 0, limit: int = 1000, batch_size: int = 100
+):
     sleep = 1
     while True:
         logger.info(player_id)
@@ -198,25 +210,31 @@ async def task_get_players(queue: asyncio.Queue, player_id: int = 0, limit: int 
             sleep = min(sleep * 2, 60)
             continue
 
-        for player in players:
-            await queue.put(player["player_id"])
+        players = [p["player_id"] for p in players]
+        for i in range(0, len(players), batch_size):
+            batch = players[i : i + batch_size]
+            await queue.put(tuple(batch))
 
-        player_id = players[-1]["player_id"]
+        player_id = players[-1]
 
         if len(players) < limit:
             logger.info("No players to migrate, sleeping 300 seconds.")
             await asyncio.sleep(300)
 
-
+# 10 => 5 sec
 async def main():
     player_id = 0
-    limit = 10
+    batch_size = 100
+    async_tasks = 1
+    limit = 1000
 
-    player_queue = asyncio.Queue(maxsize=100)
+    player_queue = asyncio.Queue(maxsize=25)
     # semaphore limits the number of async tasks
-    semaphore = asyncio.Semaphore(10)
+    semaphore = asyncio.Semaphore(value=async_tasks)
 
-    get_players = asyncio.create_task(task_get_players(player_queue, player_id, limit))
+    get_players = asyncio.create_task(
+        task_get_players(player_queue, player_id, limit, batch_size)
+    )
     migration_tasks = [
         asyncio.create_task(task_migrate(player_queue, semaphore))
         for _ in range(semaphore._value)
