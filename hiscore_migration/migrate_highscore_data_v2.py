@@ -221,14 +221,14 @@ async def task_get_players(
             logger.info("No players to migrate, sleeping 300 seconds.")
             await asyncio.sleep(300)
 
-# 10 => 5 sec
+# bsize: 100, rows: 1000, time: 
 async def main():
     player_id = 0
-    batch_size = 100
+    batch_size = 1000
     async_tasks = 1
-    limit = 1000
+    limit = 10000
 
-    player_queue = asyncio.Queue(maxsize=25)
+    player_queue = asyncio.Queue(maxsize=async_tasks+1)
     # semaphore limits the number of async tasks
     semaphore = asyncio.Semaphore(value=async_tasks)
 
