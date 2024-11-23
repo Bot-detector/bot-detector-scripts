@@ -50,6 +50,29 @@ LEFT JOIN report_sighting AS rs
 ON tb.reportingID = rs.reporting_id AND tb.reportedID = rs.reported_id AND tb.manual_detect = rs.manual_detect
 SET tb.report_sighting_id = rs.report_sighting_id;
 
+UPDATE temp_batch AS tb
+LEFT JOIN report_gear AS rg
+ON
+    tb.equip_head_id = rg.equip_head_id AND
+    tb.equip_amulet_id = rg.equip_amulet_id AND
+    tb.equip_torso_id = rg.equip_torso_id AND
+    tb.equip_legs_id = rg.equip_legs_id AND
+    tb.equip_boots_id = rg.equip_boots_id AND
+    tb.equip_cape_id = rg.equip_cape_id AND
+    tb.equip_hands_id = rg.equip_hands_id AND
+    tb.equip_weapon_id = rg.equip_weapon_id AND
+    tb.equip_shield_id = rg.equip_shield_id
+
+SET tb.report_gear_id = rg.report_gear_id;
+
+UPDATE temp_batch AS tb
+LEFT JOIN report_location AS rl
+ON tb.region_id = rl.region_id
+AND tb.x_coord = rl.x_coord
+AND tb.y_coord = rl.y_coord
+AND tb.z_coord = rl.z_coord
+SET tb.report_location_id = rl.report_location_id;
+
 
 
 -- Debug: Check temp_batch after update
