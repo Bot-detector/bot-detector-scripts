@@ -99,36 +99,38 @@ async def migrate(player_id: int):
 
     sql_insert_temp_table = """
         INSERT INTO temp_hs_data (scraper_id, player_id, scrape_ts, scrape_date, skills, activities)
-        SELECT
-            sd.scraper_id,
-            sd.player_id,
-            sd.created_at as scrape_ts,
-            sd.record_date as scrape_date,
+        select 
+            sdv.scrape_id,
+            sdv.player_id,
+            sdv.scrape_ts as scrape_ts,
+            sdv.scrape_date as scrape_date,
             (
-                SELECT
+                select 
                     JSON_OBJECTAGG(
                         s.skill_name, ps.skill_value
-                    ) AS skills
-                FROM player_skills ps
-                JOIN skills s ON ps.skill_id = s.skill_id
-                WHERE ps.scraper_id = sd.scraper_id
+                    )
+                from scraper_player_skill sps 
+                join player_skill ps on sps.player_skill_id = ps.player_skill_id
+                join skill s on ps.skill_id = s.skill_id
+                where sdv.scrape_id = sps.scrape_id
                 GROUP BY
-                    sd.scraper_id
+                    sdv.scrape_id
             ) as skills,
             (
-            SELECT
-                JSON_OBJECTAGG(
-                    a.activity_name , pa.activity_value 
-                ) AS activities
-            FROM player_activities pa
-            JOIN activities a ON pa.activity_id = a.activity_id
-            WHERE pa.scraper_id = sd.scraper_id
-            GROUP BY
-                sd.scraper_id
+                select 
+                    JSON_OBJECTAGG(
+                        a.activity_name, pa.activity_value
+                    )
+                from scraper_player_activity spa 
+                join player_activity pa on spa.player_activity_id = pa.player_activity_id
+                join activity a on pa.activity_id = a.activity_id
+                where sdv.scrape_id = spa.scrape_id
+                GROUP BY
+                    sdv.scrape_id
             ) as activities
-        FROM scraper_data sd
+        from scraper_data_v3 sdv
         WHERE 1=1
-            and sd.player_id IN :player_id
+            and sdv.player_id IN :player_id
         ;
     """
 
@@ -144,7 +146,7 @@ async def migrate(player_id: int):
     """
 
     sql_delete_data = """
-        DELETE FROM scraper_data where scraper_id in (select scraper_id from temp_hs_data);
+        DELETE FROM scraper_data_v3 where scrape_id in (select scraper_id from temp_hs_data);
     """
 
     async with Session() as session:
