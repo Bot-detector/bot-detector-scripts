@@ -23,9 +23,25 @@ Session = sessionmaker(
 with open('report_data.sql','r') as x:
     migration_query = x.read()
 
+
+with open('report_data_where_not_exists.sql','r') as x:
+    migration_query_where_not_exists = x.read()
+
+
+with open('reset_tables.sql','r') as x:
+    reset_tables_query = x.read()
+
+
+
 async def main():
     await migrate_selection(1, 100_000)
 
+async def reset_tables():
+    # get a session
+    async with Session() as session:
+        session: AsyncSession
+        async with session.begin():
+            await session.execute(sqla.text(reset_tables_query+" COMMIT;"))
 async def migrate_selection(startId, endId):
     # get a session
     async with Session() as session:
@@ -33,6 +49,14 @@ async def migrate_selection(startId, endId):
         params = {"startId": startId, "endId": endId}
         async with session.begin():
             await session.execute(sqla.text(migration_query+" COMMIT;"), params=params)
+
+async def migrate_selection_where_not_exists(startId, endId):
+    # get a session
+    async with Session() as session:
+        session: AsyncSession
+        params = {"startId": startId, "endId": endId}
+        async with session.begin():
+            await session.execute(sqla.text(migration_query_where_not_exists+" COMMIT;"), params=params)
 
 
     
