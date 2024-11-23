@@ -20,14 +20,21 @@ Session = sessionmaker(
     autoflush=False,
 )
 
+with open('report_data.sql','r') as x:
+    migration_query = x.read()
+
 async def main():
+    await migrate_selection(1, 100_000)
+
+async def migrate_selection(startId, endId):
     # get a session
     async with Session() as session:
         session: AsyncSession
-        # get a transaction
+        params = {"startId": startId, "endId": endId}
         async with session.begin():
-            # do something
-            pass
+            await session.execute(sqla.text(migration_query+" COMMIT;"), params=params)
+
+
     
 if __name__ == "__main__":
     asyncio.run(main())
