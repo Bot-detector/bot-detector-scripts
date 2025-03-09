@@ -1,15 +1,16 @@
 import asyncio
+import csv
+import datetime
+import logging
 import os
+import sys
+import time
+
 import dotenv
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
 import sqlalchemy as sqla
 from sqlalchemy.exc import OperationalError
-import csv
-import logging
-import time
-import sys
-import datetime
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 logger = logging.getLogger(__name__)
 # # log formatting
@@ -92,13 +93,14 @@ async def migrate_report_data(player_id_list: list):
             await session.execute(sqla.text(sql_combined), params=params)
 
 
-async def select_players_to_migrate():
+async def select_players_to_migrate(player_id: int = 0):
     sql_select_migrated = """
         SELECT 
             rm.reporting_id as player_id 
         FROM report_migrated rm
-        WHERE
-            rm.migrated != 1
+        WHERE 1=1
+            and rm.migrated != 1
+            and rm.reporting_id > :player_id
         limit 100
         ;
     """
@@ -106,7 +108,9 @@ async def select_players_to_migrate():
         async with Session() as session:
             session: AsyncSession
             async with session.begin():
-                data = await session.execute(sqla.text(sql_select_migrated))
+                data = await session.execute(
+                    sqla.text(sql_select_migrated), params={"player_id": player_id}
+                )
                 result = data.mappings().all()
     except Exception as e:
         logger.error(f"Error in select_players_to_migrate: {e}")
@@ -114,21 +118,39 @@ async def select_players_to_migrate():
     return result
 
 
+def yield_batch(arr: list, batch_size: int):
+    for i in range(0, len(arr), batch_size):
+        yield arr[i : i + batch_size]
+
+
 async def create_batches(batch_size: int, batch_queue: asyncio.Queue):
     sleep = 1
+    player_id = 0
     while True:
         try:
-            players = await select_players_to_migrate()
+            players = await select_players_to_migrate(player_id=player_id)
+
             if not players:
                 logger.info("No players to migrate, sleeping...")
+                logger.info(f"resetting player_id from [{player_id}] to [0]")
+                player_id = 0
                 await asyncio.sleep(sleep)
                 sleep = min(sleep * 2, 60)
-            for i in range(0, len(players), batch_size):
-                batch = players[i : i + batch_size]
+                continue
+
+            for batch in yield_batch(players, batch_size):
                 await batch_queue.put(batch)
-            
+                player_id = batch[-1][
+                    "player_id"
+                ]  # Update player_id to the last player in the batch
+
             if len(players) < 100:
+                logger.info(f"resetting player_id from [{player_id}] to [0]")
+                player_id = 0
                 await asyncio.sleep(300)
+            else:
+                # Reset sleep if players were found
+                sleep = 1
         except Exception as e:
             logger.error(f"Error in create_batches: {e}")
             await asyncio.sleep(sleep)
@@ -139,6 +161,8 @@ async def create_batches(batch_size: int, batch_queue: asyncio.Queue):
 async def task_migrate(batch_queue: asyncio.Queue, semaphore: asyncio.Semaphore):
     global counter
     sleep = 1
+    skip_list = [657248]
+
     while True:
         if batch_queue.empty():
             await asyncio.sleep(1)
@@ -147,16 +171,21 @@ async def task_migrate(batch_queue: asyncio.Queue, semaphore: asyncio.Semaphore)
             players = await batch_queue.get()
             batch_queue.task_done()
             async with semaphore:
-
                 if players:
-                    _player_ids = [p["player_id"] for p in players]
+                    _player_ids = [
+                        p["player_id"]
+                        for p in players
+                        if p["player_id"] not in skip_list
+                    ]
+                    if not _player_ids:
+                        continue
                     logger.info(f"Started Migrating: {_player_ids}")
                     start = time.time()
                     await migrate_report_data(player_id_list=_player_ids)
                     counter += 1
                     delta = int(time.time() - start)
                     logger.info(f"Migrated: {_player_ids}, time: {delta}")
-                
+
                 sleep = 1
         except OperationalError as e:
             logger.warning(f"task_migrate: [{sleep}] {_player_ids} {e._message()}")
@@ -181,7 +210,7 @@ async def write_progress():
 
 
 async def main():
-    batch_queue = asyncio.Queue(maxsize=10)
+    batch_queue = asyncio.Queue(maxsize=100)
     semaphore = asyncio.Semaphore(100)  # Limit the number of concurrent tasks
     batch_size = 1
 
