@@ -93,7 +93,7 @@ async def migrate_report_data(player_id_list: list):
             await session.execute(sqla.text(sql_combined), params=params)
 
 
-async def select_players_to_migrate(player_id: int = 0):
+async def select_players_to_migrate(player_id: int = 0) -> list:
     sql_select_migrated = """
         SELECT 
             rm.reporting_id as player_id 
@@ -138,11 +138,11 @@ async def create_batches(batch_size: int, batch_queue: asyncio.Queue):
                 sleep = min(sleep * 2, 60)
                 continue
 
+            logger.info(f"received [{len(players)}]")
             for batch in yield_batch(players, batch_size):
                 await batch_queue.put(batch)
-                player_id = batch[-1][
-                    "player_id"
-                ]  # Update player_id to the last player in the batch
+                # Update player_id to the last player in the batch
+                player_id = batch[-1]["player_id"]
 
             if len(players) < 100:
                 logger.info(f"resetting player_id from [{player_id}] to [0]")
