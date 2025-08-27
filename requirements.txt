@@ -2,7 +2,7 @@ asttokens==2.4.1
 asyncmy==0.2.9
 cffi==1.16.0
 comm==0.2.2
-cryptography==42.0.8
+cryptography==43.0.1
 debugpy==1.8.1
 decorator==5.1.1
 exceptiongroup==1.2.1
